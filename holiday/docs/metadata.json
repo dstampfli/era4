@@ -1,0 +1,2 @@
+{"id":"1","structData":{"company":"lyft","type":"10-K","year":"2023","url":"https://d18rn0p25nwr6d.cloudfront.net/CIK-0001759509/d576a7f4-780c-4f39-86a6-aa54b03fa2ec.pdf"},"content":{"mimeType":"application/pdf","uri":"gs://10k-docs/lyft.pdf"}}
+{"id":"2","structData":{"company":"Uber","type":"10-K","year":"2023","url":"https://d18rn0p25nwr6d.cloudfront.net/CIK-0001543151/6fabd79a-baa9-4b08-84fe-deab4ef8415f.pdf"},"content":{"mimeType":"application/pdf","uri":"gs://10k-docs/uber.pdf"}}
