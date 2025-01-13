@@ -1,2 +1,2 @@
-{"id":"1","structData":{"company":"lyft","type":"10-K","year":"2023","url":"https://storage.cloud.google.com/docs-10k/html/lyft-20231231.html"},"content":{"mimeType":"text/html","uri":"gs://docs-10k/html/lyft-20231231.html"}}
-{"id":"2","structData":{"company":"Uber","type":"10-K","year":"2023","url":"https://storage.cloud.google.com/docs-10k/html/uber-20231231.html"},"content":{"mimeType":"text/html","uri":"gs://docs-10k/html/uber-20231231.html"}}
+{"id":"1","structData":{"company":"lyft","type":"10-K","year":"2023","url":"https://storage.cloud.google.com/docs-10k-html/lyft-20231231.html"},"content":{"mimeType":"text/html","uri":"gs://docs-10k-html/lyft-20231231.html"}}
+{"id":"2","structData":{"company":"Uber","type":"10-K","year":"2023","url":"https://storage.cloud.google.com/docs-10k-html/uber-20231231.html"},"content":{"mimeType":"text/html","uri":"gs://docs-10k-html/uber-20231231.html"}}
