@@ -31,52 +31,7 @@ from ragas.metrics import (
     faithfulness,
 )
 
-# Load docs from a directory
-def process_directory(
-    path: str, 
-    glob: str, 
-    loader_cls: str = None, 
-    use_multithreading: bool = True
-) -> None:
-    	
-	if loader_cls is None:
-		loader = DirectoryLoader(path=path, 
-							glob=glob, 
-						   	show_progress=True, 
-						   	use_multithreading=use_multithreading)
-	else:
-		loader = DirectoryLoader(path=path, 
-						   	glob=glob, 
-							loader_cls=loader_cls, 
-						   	show_progress=True, 
-						   	use_multithreading=use_multithreading)
-	
-	docs = loader.load()
-	
-	return docs
-
-def test_process_directory():
-	docs = process_directory(path="docs/10k/html", 
-						  glob="**/*.html", 
-						  loader_cls=None, 
-						  use_multithreading=True)
-	print(len(docs))
-
-# Create embeddings using OpenAI
-def create_embeddings_openai(model="text-embedding-ada-002") -> OpenAIEmbeddings:
-
-	# Initialize the OpenAIEmbeddings class
-	embeddings = OpenAIEmbeddings(model=model)
-
-	return embeddings
-
-def test_create_embeddings_openai():
-	text = "What is the annual revenue of Uber?"
-	
-	embeddings = create_embeddings_openai()
-	vector = embeddings.embed_query(text)
-	
-	print(vector)
+##############
 
 # Create a text splitter using recursive character text splitter
 # https://python.langchain.com/v0.1/docs/modules/data_connection/document_transformers/recursive_text_splitter/
@@ -92,87 +47,56 @@ def chunk_docs_recursive(docs: list,
 
 	return chunks
 
-def test_chunk_docs_recursive(): 
-	docs = process_directory(path="docs/10k/html", 
-						  glob="**/*.html", 
-						  loader_cls=None, 
-						  use_multithreading=True)
-	
-	chunks = chunk_docs_recursive(docs=docs)
+# Create embeddings using OpenAI
+def create_embeddings_openai(model="text-embedding-ada-002") -> OpenAIEmbeddings:
 
-	print(f"\nNumber of chunks = {len(chunks)}\n")
+	# Initialize the OpenAIEmbeddings class
+	embeddings = OpenAIEmbeddings(model=model)
 
-	print(f"First chunk = {chunks[0].page_content}")
+	return embeddings
+\
+# Create a Langchain chain using OpenAI
+def create_chain_openai (model: str, 
+				  prompt_template: ChatPromptTemplate, 
+				  retriever: BaseRetriever
+				  ) -> RunnableSerializable:
 
-# Create a Qdrant vector store
-def create_qdrant_vector_store(location: str, 
-							   collection_name: str, 
-							   vector_size: int, 
-							   embeddings: Embeddings, 
-							   docs: list) -> QdrantVectorStore:
+	llm = ChatOpenAI(model=model)
+		
+	chain = (
+		{"context": itemgetter("question") | retriever, "question": itemgetter("question")} 
+		| RunnablePassthrough.assign(context=itemgetter("context")) 
+		| {"response": prompt_template | llm, "context": itemgetter("context")}
+		)
 
-	# Initialize the Qdrant client
-	qdrant_client = QdrantClient(location=location)
+	return chain
 
-	# Create a collection in Qdrant
-	qdrant_client.create_collection(collection_name=collection_name, 
-								 vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE))
+# Create a Langchain chain using OpenAI
+# https://python.langchain.com/docs/integrations/llms/google_ai/
+# https://python.langchain.com/docs/integrations/chat/google_generative_ai/
+# https://ai.google.dev/gemini-api/docs/safety-settings 
+def create_chain_vertexai (model_name: str, 
+						   prompt_template: ChatPromptTemplate, 
+						   retriever: BaseRetriever) -> RunnableSerializable:
 
-	# Initialize QdrantVectorStore with the Qdrant client
-	qdrant_vector_store = QdrantVectorStore(client=qdrant_client, 
-										 collection_name=collection_name, embedding=embeddings)
-	
-	# Add the docs to the vector store
-	qdrant_vector_store.add_documents(docs)
-	
-	return qdrant_vector_store
+	llm = ChatGoogleGenerativeAI(
+		model=model_name,
+		temperature=0,
+		safety_settings={
+				HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+				HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+				HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+				HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+			},
+		)
+		
+	chain = (
+		{"context": itemgetter("question") | retriever, "question": itemgetter("question")} 
+		| RunnablePassthrough.assign(context=itemgetter("context")) 
+		| {"response": prompt_template | llm, "context": itemgetter("context")}
+		)
 
-def test_create_qdrant_vector_store():
-	docs = process_directory(path="docs/10k/html", 
-						  glob="**/*.html", 
-						  loader_cls=None, 
-						  use_multithreading=True)
-	
-	chunks = chunk_docs_recursive(docs=docs)
-	
-	embeddings = create_embeddings_openai()
-
-	vector_store = create_qdrant_vector_store(":memory:", 
-										   "holiday-test", 
-										   1536, 
-										   embeddings, 
-										   chunks)
-	
-	print(vector_store.collection_name)
-
-# Create a Qdrant retriever
-def create_retriever_qdrant(vector_store: QdrantVectorStore) -> BaseRetriever:
-
-	retriever = vector_store.as_retriever()
-
-	return retriever
-
-def test_create_retriever_qdrant(text):
-	docs = process_directory(path="docs/10k/html", 
-						  glob="**/*.html", 
-						  loader_cls=None, 
-						  use_multithreading=True)
-	
-	chunks = chunk_docs_recursive(docs=docs)
-	
-	embeddings = create_embeddings_openai()
-
-	vector_store = create_qdrant_vector_store(":memory:", 
-										   "holiday-test", 
-										   1536, 
-										   embeddings, 
-										   chunks)
-	
-	retriever = create_retriever_qdrant(vector_store)
-	
-	docs = retriever.invoke(text)
-
-	print(docs[0])
+	return chain
 
 # Create a prompt template
 # https://python.langchain.com/v0.1/docs/modules/model_io/prompts/quick_start/#chatprompttemplate
@@ -224,28 +148,145 @@ def create_chat_prompt_template(template: str = None) -> ChatPromptTemplate:
 
 	return prompt
 
-def test_create_chat_prompt_template():
-	prompt = create_chat_prompt_template()
+# Create embeddings using Vertex AI
+# https://python.langchain.com/docs/integrations/text_embedding/google_vertex_ai_palm/
+def create_embeddings_vertexai(model="text-embedding-004") -> VertexAIEmbeddings:
+
+	creds, _ = google.auth.default(quota_project_id=os.environ["PROJECT_ID"])
+
+	# Initialize the VertexAIEmbeddings class
+	embeddings = VertexAIEmbeddings(model_name=model, 
+								 credentials=creds)
+
+	return embeddings
+
+# Create a Qdrant vector store
+def create_qdrant_vector_store(location: str, 
+							   collection_name: str, 
+							   vector_size: int, 
+							   embeddings: Embeddings, 
+							   docs: list) -> QdrantVectorStore:
+
+	# Initialize the Qdrant client
+	qdrant_client = QdrantClient(location=location)
+
+	# Create a collection in Qdrant
+	qdrant_client.create_collection(collection_name=collection_name, 
+								 vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE))
+
+	# Initialize QdrantVectorStore with the Qdrant client
+	qdrant_vector_store = QdrantVectorStore(client=qdrant_client, 
+										 collection_name=collection_name, embedding=embeddings)
 	
-	print(prompt)
+	# Add the docs to the vector store
+	qdrant_vector_store.add_documents(docs)
+	
+	return qdrant_vector_store
 
-# Create a Langchain chain
-def create_chain (model: str, 
-				  prompt_template: ChatPromptTemplate, 
-				  retriever: BaseRetriever
-				  ) -> RunnableSerializable:
+# Create a Qdrant retriever
+def create_retriever_qdrant(vector_store: QdrantVectorStore) -> BaseRetriever:
 
-	llm = ChatOpenAI(model=model)
-		
-	chain = (
-		{"context": itemgetter("question") | retriever, "question": itemgetter("question")} 
-		| RunnablePassthrough.assign(context=itemgetter("context")) 
-		| {"response": prompt_template | llm, "context": itemgetter("context")}
-		)
+	retriever = vector_store.as_retriever()
 
-	return chain
+	return retriever
+
+# Create a Vertex AI retriever
+# https://python.langchain.com/docs/integrations/retrievers/google_vertex_ai_search/
+def create_retriever_vertexai() -> VertexAISearchRetriever:
+
+	retriever = VertexAISearchRetriever(project_id=os.environ["PROJECT_ID"], location_id=os.environ["LOCATION_ID"], data_store_id=os.environ["DATA_STORE_ID"], max_documents=3)
+
+	return retriever
+
+# Generate answers from a chain using a list of questions
+def generate_answers_contexts(chain: RunnableSerializable, 
+							  questions: list
+							  ) -> Tuple[List, List]:
+	
+	answers = []
+	contexts = []
+
+	# Loop over the list of questions and call the chain to get the answer and context
+	for question in questions:
+		print(question)
+
+		# Call the chain to get answers and contexts
+		response = chain.invoke({"question" : question})
+		print(response)
+
+		# Capture the answer and context 
+		answers.append(response["response"].content)
+		contexts.append([context.page_content for context in response["context"]])
+
+	return answers, contexts
+
+# Load docs from a directory
+def process_directory(
+    path: str, 
+    glob: str, 
+    loader_cls: str = None, 
+    use_multithreading: bool = True
+) -> None:
+    	
+	if loader_cls is None:
+		loader = DirectoryLoader(path=path, 
+							glob=glob, 
+						   	show_progress=True, 
+						   	use_multithreading=use_multithreading)
+	else:
+		loader = DirectoryLoader(path=path, 
+						   	glob=glob, 
+							loader_cls=loader_cls, 
+						   	show_progress=True, 
+						   	use_multithreading=use_multithreading)
+	
+	docs = loader.load()
+	
+	return docs
+
+# Run a Ragas evaluation 
+def run_ragas_evaluation(chain: RunnableSerializable, 
+						questions: list, 
+						groundtruths: list, 
+						eval_metrics: list = [answer_correctness, answer_relevancy, context_recall, context_precision, faithfulness]
+						):
+	
+	answers = []
+	contexts = []
+	answers, contexts = generate_answers_contexts(chain=chain, 
+                                               questions=questions)
+
+	# Create the input dataset 
+	input_dataset = Dataset.from_dict({"question" : questions,       	# From the dataframe
+										"answer" : answers,             # From the chain
+										"contexts" : contexts,          # From the chain
+										"ground_truth" : groundtruths   # From the dataframe
+										})
+
+	# Run the Ragas evaluation using the input dataset and eval metrics
+	ragas_results = evaluate(input_dataset, 
+                          eval_metrics)
+      
+	ragas_results_df = ragas_results.to_pandas()
+	
+	return ragas_results, ragas_results_df
+
+##############
+
+def test_chunk_docs_recursive(): 
+	docs = process_directory(path="docs/10k/html", 
+						  glob="**/*.html", 
+						  loader_cls=None, 
+						  use_multithreading=True)
+	
+	chunks = chunk_docs_recursive(docs=docs)
+
+	print(f"\nNumber of chunks = {len(chunks)}\n")
+
+	print(f"First chunk = {chunks[0].page_content}")
 
 def test_create_chain_qdrant():
+
 	docs = process_directory(path="docs/10k/html", 
 						  glob="**/*.html", 
 						  loader_cls=None, 
@@ -273,32 +314,77 @@ def test_create_chain_qdrant():
 	
 	print(result)
 
-#####
+def test_create_chain_vertexai():
+	retreiver = create_retriever_vertexai()
+	chat_prompt_template = create_chat_prompt_template()
+	chain = create_chain('gemini-1.5-flash', chat_prompt_template, retreiver)
+	result = chain.invoke({'question' : 'What is the annual revenue of Uber?'})
+	print(result)
 
-# Generate answers from a chain using a list of questions
-
-
-
-def generate_answers_contexts(chain: RunnableSerializable, 
-							  questions: list
-							  ) -> Tuple[List, List]:
+def test_create_chat_prompt_template():
+	prompt = create_chat_prompt_template()
 	
-	answers = []
-	contexts = []
+	print(prompt)
 
-	# Loop over the list of questions and call the chain to get the answer and context
-	for question in questions:
-		print(question)
+def test_create_embeddings_openai():
+	text = "What is the annual revenue of Uber?"
+	
+	embeddings = create_embeddings_openai()
+	vector = embeddings.embed_query(text)
+	
+	print(vector)
 
-		# Call the chain to get answers and contexts
-		response = chain.invoke({"question" : question})
-		print(response)
+def test_create_embeddings_vertexai():
+	text = 'What is the annual revenue of Uber?'
+	embeddings = create_embeddings_vertexai()
+	vector = embeddings.embed_query(text)
+	print(vector)
+	return embeddings
 
-		# Capture the answer and context 
-		answers.append(response["response"].content)
-		contexts.append([context.page_content for context in response["context"]])
+def test_create_qdrant_vector_store():
+	docs = process_directory(path="docs/10k/html", 
+						  glob="**/*.html", 
+						  loader_cls=None, 
+						  use_multithreading=True)
+	
+	chunks = chunk_docs_recursive(docs=docs)
+	
+	embeddings = create_embeddings_openai()
 
-	return answers, contexts
+	vector_store = create_qdrant_vector_store(":memory:", 
+										   "holiday-test", 
+										   1536, 
+										   embeddings, 
+										   chunks)
+	
+	print(vector_store.collection_name)
+
+def test_create_retriever_qdrant(text):
+	docs = process_directory(path="docs/10k/html", 
+						  glob="**/*.html", 
+						  loader_cls=None, 
+						  use_multithreading=True)
+	
+	chunks = chunk_docs_recursive(docs=docs)
+	
+	embeddings = create_embeddings_openai()
+
+	vector_store = create_qdrant_vector_store(":memory:", 
+										   "holiday-test", 
+										   1536, 
+										   embeddings, 
+										   chunks)
+	
+	retriever = create_retriever_qdrant(vector_store)
+	
+	docs = retriever.invoke(text)
+
+	print(docs[0])
+
+def test_create_retriever_vertexai(text:str):
+	retriever = create_retriever_vertexai()
+	docs = retriever.invoke(text)
+	print(docs[0])
 
 def test_generate_answers_contexts():
 	docs = process_directory(path="docs/10k/html", 
@@ -334,37 +420,12 @@ def test_generate_answers_contexts():
 	print(f"Total number of answers = {len(answers)}")
 	print(f"Total number of contexts = {len(contexts)}")
 
-#####
-
-# Run a Ragas evaluation 
-
-
-
-def run_ragas_evaluation(chain: RunnableSerializable, 
-						questions: list, 
-						groundtruths: list, 
-						eval_metrics: list = [answer_correctness, answer_relevancy, context_recall, context_precision, faithfulness]
-						):
-	
-	answers = []
-	contexts = []
-	answers, contexts = generate_answers_contexts(chain=chain, 
-                                               questions=questions)
-
-	# Create the input dataset 
-	input_dataset = Dataset.from_dict({"question" : questions,       	# From the dataframe
-										"answer" : answers,             # From the chain
-										"contexts" : contexts,          # From the chain
-										"ground_truth" : groundtruths   # From the dataframe
-										})
-
-	# Run the Ragas evaluation using the input dataset and eval metrics
-	ragas_results = evaluate(input_dataset, 
-                          eval_metrics)
-      
-	ragas_results_df = ragas_results.to_pandas()
-	
-	return ragas_results, ragas_results_df
+def test_process_directory():
+	docs = process_directory(path="docs/10k/html", 
+						  glob="**/*.html", 
+						  loader_cls=None, 
+						  use_multithreading=True)
+	print(len(docs))
 
 def test_run_ragas_evaluation():
     docs = process_directory(
@@ -420,95 +481,7 @@ def test_run_ragas_evaluation():
 
     print(ragas_results)
 
-#####
-
-# Create embeddings using Vertex AI
-
-# https://python.langchain.com/docs/integrations/text_embedding/google_vertex_ai_palm/
-
-
-
-def create_embeddings_vertexai(model="text-embedding-004") -> VertexAIEmbeddings:
-
-	creds, _ = google.auth.default(quota_project_id=os.environ["PROJECT_ID"])
-
-	# Initialize the VertexAIEmbeddings class
-	embeddings = VertexAIEmbeddings(model_name=model, 
-								 credentials=creds)
-
-	return embeddings
-
-def test_create_embeddings_vertexai():
-	text = 'What is the annual revenue of Uber?'
-	embeddings = create_embeddings_vertexai()
-	vector = embeddings.embed_query(text)
-	print(vector)
-	return embeddings
-
-#####
-
-# Create a Vertex AI retriever
-
-# https://python.langchain.com/docs/integrations/retrievers/google_vertex_ai_search/
-
-
-
-def create_retriever_vertexai() -> VertexAISearchRetriever:
-
-	retriever = VertexAISearchRetriever(project_id=os.environ["PROJECT_ID"], location_id=os.environ["LOCATION_ID"], data_store_id=os.environ["DATA_STORE_ID"], max_documents=3)
-
-	return retriever
-
-def test_create_retriever_vertexai(text:str):
-	retriever = create_retriever_vertexai()
-	docs = retriever.invoke(text)
-	print(docs[0])
-
-#####
-
-# Create a Langchain chain
-
-# https://python.langchain.com/docs/integrations/llms/google_ai/
-# https://python.langchain.com/docs/integrations/chat/google_generative_ai/
-# https://ai.google.dev/gemini-api/docs/safety-settings 
-
-
-
-def create_chain (model_name: str, 
-				  prompt_template: ChatPromptTemplate, 
-				  retriever: BaseRetriever) -> RunnableSerializable:
-
-	llm = ChatGoogleGenerativeAI(
-		model=model_name,
-		temperature=0,
-		safety_settings={
-				HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-				HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-				HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-				HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-			},
-		)
-		
-	chain = (
-		{"context": itemgetter("question") | retriever, "question": itemgetter("question")} 
-		| RunnablePassthrough.assign(context=itemgetter("context")) 
-		| {"response": prompt_template | llm, "context": itemgetter("context")}
-		)
-
-	return chain
-
-def test_create_chain_vertexai():
-	retreiver = create_retriever_vertexai()
-	chat_prompt_template = create_chat_prompt_template()
-	chain = create_chain('gemini-1.5-flash', chat_prompt_template, retreiver)
-	result = chain.invoke({'question' : 'What is the annual revenue of Uber?'})
-	print(result)
-
-#####
-
-
-
-##########
+##############
 
 if __name__ == "__main__":
 	# Load environment variables from .env file
