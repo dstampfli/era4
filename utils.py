@@ -1,9 +1,37 @@
-#####
+
+import os
+import time
+from operator import itemgetter
+from typing import List, Tuple
+
+import google.auth
+import pandas as pd
+from datasets import Dataset
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
+from langchain.prompts import ChatPromptTemplate
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import DirectoryLoader
+from langchain_core.embeddings import Embeddings
+from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables import RunnablePassthrough, RunnableSerializable
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_qdrant import QdrantVectorStore
+from langchain_google_community import VertexAISearchRetriever
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_vertexai import VertexAIEmbeddings
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams
+from ragas import evaluate
+from ragas.metrics import (
+    answer_correctness,
+    answer_relevancy,
+    context_precision,
+    context_recall,
+    faithfulness,
+)
 
 # Load docs from a directory
-
-from langchain_community.document_loaders import DirectoryLoader 
-
 def process_directory(
     path: str, 
     glob: str, 
@@ -13,15 +41,15 @@ def process_directory(
     	
 	if loader_cls is None:
 		loader = DirectoryLoader(path=path, 
-						   glob=glob, 
-						   show_progress=True, 
-						   use_multithreading=use_multithreading)
+							glob=glob, 
+						   	show_progress=True, 
+						   	use_multithreading=use_multithreading)
 	else:
 		loader = DirectoryLoader(path=path, 
-						   glob=glob, 
-						   loader_cls=loader_cls, 
-						   show_progress=True, 
-						   use_multithreading=use_multithreading)
+						   	glob=glob, 
+							loader_cls=loader_cls, 
+						   	show_progress=True, 
+						   	use_multithreading=use_multithreading)
 	
 	docs = loader.load()
 	
@@ -34,12 +62,7 @@ def test_process_directory():
 						  use_multithreading=True)
 	print(len(docs))
 
-#####
-
 # Create embeddings using OpenAI
-
-from langchain_openai import OpenAIEmbeddings
-
 def create_embeddings_openai(model="text-embedding-ada-002") -> OpenAIEmbeddings:
 
 	# Initialize the OpenAIEmbeddings class
@@ -55,14 +78,8 @@ def test_create_embeddings_openai():
 	
 	print(vector)
 
-#####
-
 # Create a text splitter using recursive character text splitter
-
 # https://python.langchain.com/v0.1/docs/modules/data_connection/document_transformers/recursive_text_splitter/
-
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 def chunk_docs_recursive(docs: list, 
 						 chunk_size=500, 
 						 chunk_overlap=50
@@ -87,15 +104,7 @@ def test_chunk_docs_recursive():
 
 	print(f"First chunk = {chunks[0].page_content}")
 
-#####
-
 # Create a Qdrant vector store
-
-from langchain_core.embeddings import Embeddings
-from langchain_qdrant import QdrantVectorStore
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams
-
 def create_qdrant_vector_store(location: str, 
 							   collection_name: str, 
 							   vector_size: int, 
@@ -136,13 +145,7 @@ def test_create_qdrant_vector_store():
 	
 	print(vector_store.collection_name)
 
-#####
-
 # Create a Qdrant retriever
-
-from langchain_core.retrievers import BaseRetriever
-from langchain_qdrant import QdrantVectorStore
-
 def create_retriever_qdrant(vector_store: QdrantVectorStore) -> BaseRetriever:
 
 	retriever = vector_store.as_retriever()
@@ -171,15 +174,9 @@ def test_create_retriever_qdrant(text):
 
 	print(docs[0])
 
-#####
-
 # Create a prompt template
-
 # https://python.langchain.com/v0.1/docs/modules/model_io/prompts/quick_start/#chatprompttemplate
 # https://python.langchain.com/v0.2/api_reference/core/prompts/langchain_core.prompts.chat.ChatPromptTemplate.html
-
-from langchain.prompts import ChatPromptTemplate
-
 def create_chat_prompt_template(template: str = None) -> ChatPromptTemplate:
 	
 	if template is None:
@@ -232,16 +229,7 @@ def test_create_chat_prompt_template():
 	
 	print(prompt)
 
-#####
-
 # Create a Langchain chain
-
-from operator import itemgetter
-
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import RunnablePassthrough, RunnableSerializable
-from langchain_openai import ChatOpenAI
-
 def create_chain (model: str, 
 				  prompt_template: ChatPromptTemplate, 
 				  retriever: BaseRetriever
@@ -289,10 +277,7 @@ def test_create_chain_qdrant():
 
 # Generate answers from a chain using a list of questions
 
-from typing import List, Tuple
 
-from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
-from langchain_core.runnables import RunnableSerializable
 
 def generate_answers_contexts(chain: RunnableSerializable, 
 							  questions: list
@@ -353,21 +338,7 @@ def test_generate_answers_contexts():
 
 # Run a Ragas evaluation 
 
-import time
-from typing import Tuple
 
-import pandas as pd
-from pandas import DataFrame
-
-from datasets import Dataset
-from langchain_core.runnables import RunnableSerializable
-from ragas import evaluate
-from ragas.metrics import (
-    answer_correctness,
-    answer_relevancy,
-    context_precision,
-    context_recall,
-    faithfulness)
 
 def run_ragas_evaluation(chain: RunnableSerializable, 
 						questions: list, 
@@ -455,10 +426,7 @@ def test_run_ragas_evaluation():
 
 # https://python.langchain.com/docs/integrations/text_embedding/google_vertex_ai_palm/
 
-import os
 
-import google.auth
-from langchain_google_vertexai import VertexAIEmbeddings
 
 def create_embeddings_vertexai(model="text-embedding-004") -> VertexAIEmbeddings:
 
@@ -483,7 +451,7 @@ def test_create_embeddings_vertexai():
 
 # https://python.langchain.com/docs/integrations/retrievers/google_vertex_ai_search/
 
-from langchain_google_community import VertexAISearchRetriever
+
 
 def create_retriever_vertexai() -> VertexAISearchRetriever:
 
@@ -504,12 +472,7 @@ def test_create_retriever_vertexai(text:str):
 # https://python.langchain.com/docs/integrations/chat/google_generative_ai/
 # https://ai.google.dev/gemini-api/docs/safety-settings 
 
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.runnables import RunnableSerializable
-from langchain_google_genai import ChatGoogleGenerativeAI
-from operator import itemgetter
+
 
 def create_chain (model_name: str, 
 				  prompt_template: ChatPromptTemplate, 
