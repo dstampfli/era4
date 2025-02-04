@@ -1,6 +1,8 @@
 IProgress
 ipywidgets
 python-dotenv
+# Run "conda install -c conda-forge libmagic" first on Macs using Apple silicon
+python-magic
 tqdm
 
 google-cloud-aiplatform
