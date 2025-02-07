@@ -3,13 +3,16 @@ ipywidgets
 python-dotenv
 # Run "conda install -c conda-forge libmagic" first on Macs using Apple silicon
 python-magic
+seaborn
 tqdm
 
 google-cloud-aiplatform
 google-cloud-discoveryengine
 
+langchain_cohere
 langchain-core
 langchain-community
+langchain_experimental
 langchain-openai 
 langchain-qdrant 
 langchain-google-community
@@ -19,3 +22,4 @@ langchain-google-vertexai
 ragas
 unstructured
 unstructured[md]
+unstructured[pdf]

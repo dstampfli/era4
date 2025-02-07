@@ -138,6 +138,14 @@ class TestUtils(unittest.TestCase):
         # Assert
         self.assertGreater(len(answers), 0, "Answers should not be empty")
         self.assertGreater(len(contexts), 0, "Contexts should not be empty")
+    
+    def test_get_time_string(self):
+        print("Running test_get_time_string")
+        # Arrange
+        # Act
+        timestr = get_time_string()
+        # Assert
+        self.assertIsNotNone(timestr, "Timestr should not be None")
 
     def test_process_directory(self):
         print("Running test_process_directory")
@@ -158,16 +166,9 @@ class TestUtils(unittest.TestCase):
         retriever = create_retriever_qdrant(vector_store)
         chat_prompt_template = create_chat_prompt_template()
         chain = create_chain_openai(model="gpt-4o-mini", prompt_template=chat_prompt_template, retriever=retriever,)
-        testset_df = pd.read_csv("testsets/unittest_testset.csv")
-        questions = testset_df["user_input"].values.tolist()
-        questions = [str(question) for question in questions]
-        top_5_questions = questions[:5]
-        groundtruths = testset_df["reference"].values.tolist()
-        groundtruths = [str(ground_truth) for ground_truth in groundtruths]
-        top_5_groundtruths = groundtruths[:5]
         eval_metrics = [answer_correctness, answer_relevancy, context_precision, context_recall, faithfulness,]
         # Act
-        ragas_results, ragas_results_df = run_ragas_evaluation(chain=chain, questions=top_5_questions, groundtruths=top_5_groundtruths, eval_metrics=eval_metrics,)
+        ragas_results, ragas_results_df = run_ragas_evaluation(chain=chain, testset_name="testsets/unittest_testset-gpt-4o-mini.csv", eval_metrics=eval_metrics,)
         timestr = time.strftime("%Y%m%d%H%M%S")
         ragas_results_df.to_csv(f"evaluations/unittest_testset_evaluation_{timestr}.csv")
         # Assert
