@@ -7,7 +7,7 @@ import unittest
 from dotenv import load_dotenv
 import magic
 
-from utils import *
+from .utils import *
 
 ##############
 
