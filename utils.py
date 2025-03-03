@@ -10,14 +10,14 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
 
-from google.generativeai.types import HarmBlockThreshold, HarmCategory
+from langchain_google_genai import HarmBlockThreshold, HarmCategory
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_community.document_loaders import DirectoryLoader
 from langchain_core.embeddings import Embeddings
-from langchain_core.outputs import LLMResult
+from langchain_core.outputs import ChatGeneration, LLMResult
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnablePassthrough, RunnableSerializable
 
